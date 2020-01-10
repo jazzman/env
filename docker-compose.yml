@@ -1,0 +1,61 @@
+version: '3.7'
+services:
+  workspace:
+    container_name: ${ENV_NAME}_workspace
+    hostname: ${ENV_NAME}.workspace.docker
+    build:
+      context: ./workspace
+      args:
+        - INSTALL_XDEBUG=${INSTALL_XDEBUG}
+        - PHP_VERSION=${PHP_VERSION}
+    volumes:
+      - ${SRC}:${WORKDIR}
+    extra_hosts:
+      - dockerhost:${DOCKER_HOST_IP}
+  nginx:
+    container_name: ${ENV_NAME}_nginx
+    hostname: ${ENV_NAME}.nginx.docker
+    image: nginx:alpine
+    build:
+      context: ./nginx
+    volumes:
+      - ${SRC}:${WORKDIR}
+      - ./nginx/sites:/etc/nginx/conf.d
+      - ./nginx/logs:/var/logs/nginx
+    ports:
+      - ${NGINX_HTTP_PORT}:80
+      - ${NGINX_HTTPS_PORT}:443
+    depends_on:
+      - php-fpm
+    command: /bin/sh -c "nginx -g 'daemon off;'"
+  php-fpm:
+    container_name: ${ENV_NAME}_phpfpm
+    hostname: ${ENV_NAME}.phpfpm.docker
+    build:
+      context: ./php-fpm
+      args:
+        - PHP_VERSION=${PHP_VERSION}
+    restart: always
+    volumes:
+      - ${SRC}:${WORKDIR}
+    expose:
+      - 9000
+    depends_on:
+      - workspace
+    extra_hosts:
+      - dockerhost:${DOCKER_HOST_IP}
+  db:
+    container_name: ${ENV_NAME}_db
+    hostname: ${ENV_NAME}.db.docker
+    image: mariadb:${MYSQL_VERSION}
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    ports:
+      - ${MYSQL_PORT}:3306
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    command:
+      'mysqld --innodb-flush-method=fsync'
+    extra_hosts:
+      - dockerhost:${DOCKER_HOST_IP}
